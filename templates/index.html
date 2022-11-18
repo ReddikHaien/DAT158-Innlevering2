@@ -1,0 +1,165 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>DAT158 Innlevering 2</title>
+        <style>
+            .crop-block{
+                position: relative;
+                overflow: hidden;
+                width: 224px;
+                height: 224px;
+                background-color: lightgray;
+            }
+            #selected-image{
+                position: absolute;
+                top: 0px;
+                left: 0px;
+            }
+            #predictions{
+                width: 500px;
+                border: 2px solid gray;
+                border-radius: 10px;
+                overflow-y: scroll;
+                min-height: 100px;
+            }
+            canvas{
+                width: 500;
+                height: 500;
+            }
+        </style>
+</head>
+<body>
+    <script src="https://cdn.jsdelivr.net/npm/onnxruntime-web/dist/ort.min.js"></script>
+    <div class="input-container">
+        <form onkeydown="return event.key != 'Enter';" id="predictInput">
+            <div>
+                <input name = "inputImage" type="file" accept="image/*" placeholder="select image" onchange="onImage(this)"/>
+                <div class="crop-block" onscroll="zoomImage(this)">
+                    <img id="selected-image"/>
+                </div>
+            </div>
+            <div>
+                <label for="offsetx">Offset X</label>
+                <input type="number" name="offsetx" id="offsetx" onchange="setX(this.value)", step="1" value="0"/>
+            </div>
+            <div>
+                <label for="offsety">Offset Y</label>
+                <input type="number" name="offsety" id="offsety" onchange="setY(this.value)" step="1" value="0"/>
+            </div>
+            <div>
+                <label for="scale">Scale</label>
+                <input type="number" name="scale" id="scale" onchange="setScale(this.value)" value="100" step="1"/>
+            </div>
+            <button id="submitbutton">Predict Bird Species</button>
+        </form>
+    </div>
+    <div id="predictions">
+
+    </div>
+    <canvas>
+
+    </canvas>
+    <script>
+            let rawW = 0;
+            let rawH = 0;
+
+            /**@type {HTMLImageElement} */
+            const selectedImage = document.getElementById("selected-image");
+            /**@type {HTMLInputElement} */
+            const offsetX = document.getElementById("offsetx");
+            /**@type {HTMLInputElement} */
+            const offsetY = document.getElementById("offsety");
+            /**@type {HTMLInputElement} */
+            const scale = document.getElementById("scale");
+            /**@type {HTMLButtonElement} */
+            const button = document.getElementById("submitbutton");
+            
+            const form = document.getElementById("predictInput");
+
+            const output = document.getElementById("predictions");
+
+            let current = null;
+
+            button.onclick = async (e) => {
+                e.preventDefault();
+
+                if (!current){
+                    
+                    if (!selectedImage.src){
+                        alert("no image selected!!");
+                        return;
+                    }
+
+                    const data = new URLSearchParams();
+
+                    data.append("inputImage",imgData);
+                    data.append("offsetx",offsetX.value);
+                    data.append("offsety",offsetY.value);
+                    data.append("scale",scale.value);
+
+                    current = fetch("http://127.0.0.1:5000/predict",{
+                        method: "post",
+                        body: data,
+                        mode: "no-cors",
+                    }).then(e => {
+                        current = null;
+                        if (~~(e.status / 100) == 2){
+                            e.json().then(json => {
+                                const d = document.createElement("p");
+                                d.innerText = `${json.species} [${json.score}%]`;
+                                output.appendChild(d);
+                            });
+                        }
+                        else{
+                            alert("something went wrong " + e.status + " " + e.statusText);
+                        }
+                    })
+                }
+                else{
+                    alert("prediction ongoing!!")
+                }
+                
+            }
+
+            window.setScale = function setScale(value){
+                selectedImage.style.width = rawW * (value / 100) + "px";
+                selectedImage.style.height = rawH * (value / 100) + "px";
+            }
+
+            window.setX = function setX(value){
+                selectedImage.style.left = -value + "px";
+            }
+
+            window.setY = function setY(value){
+                selectedImage.style.top = -value + "px";
+            }
+
+            selectedImage.onload = (e) => {
+                rawW = selectedImage.width;
+                rawH = selectedImage.height;
+            }
+
+            window.onImage = function onImage(input){
+                const fr = new FileReader();
+
+                fr.onload = () => {
+                    selectedImage.src = fr.result;
+                    imgData = fr.result;
+                    scale.value = 100;
+                    offsetX.value = 0;
+                    offsetY.value = 0;
+                    selectedImage.style.left = "0px";
+                    selectedImage.style.right = "0px";
+                    selectedImage.style.width = "auto";
+                    selectedImage.style.height = "auto";
+                }
+
+                fr.readAsDataURL(input.files[0]);
+            }
+        
+    </script>
+</body>
+</html>
